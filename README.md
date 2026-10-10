@@ -1,6 +1,6 @@
 # Model Compression Suite & Pareto Profiling Engine
 
-[![CI](https://github.com/DebojyotiGhosh/model-compression-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/DebojyotiGhosh/model-compression-suite/actions)
+
 ![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.5+-ee4c2c.svg)
 ![CUDA](https://img.shields.io/badge/CUDA-12.1+-green.svg)
