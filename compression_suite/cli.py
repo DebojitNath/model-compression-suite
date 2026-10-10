@@ -142,7 +142,19 @@ def handle_sweep(args):
     print(f"Output Directory : {output_dir}")
     print("===============================================================\n")
 
-    train_teacher = getattr(args, "train_teacher", False) or config.get("train_teacher", False)
+    # Smart train_teacher resolution:
+    # 1. If explicitly set via CLI flag (--train-teacher / --no-train-teacher), respect it.
+    # 2. If defined in YAML config, respect it.
+    # 3. Otherwise: Input bundles assume pre-trained checkpoint (False);
+    #    Fresh code architectures without pre-trained checkpoints need training (True).
+    cli_train_teacher = getattr(args, "train_teacher", None)
+    if cli_train_teacher is not None:
+        train_teacher = cli_train_teacher
+    elif "train_teacher" in config:
+        train_teacher = bool(config["train_teacher"])
+    else:
+        train_teacher = (input_bundle is None)
+
     teacher_epochs = getattr(args, "teacher_epochs", None) or config.get("teacher_epochs", None)
 
     # 5. Run Pipeline
@@ -422,7 +434,8 @@ def main():
     sweep_parser.add_argument("--batch-size", type=int, default=None, help="Batch size")
     sweep_parser.add_argument("--device", type=str, default=None, help="'cpu', 'cuda', or 'auto'")
     sweep_parser.add_argument("--export", type=str, default=None, help="Comma-separated model(s) to export (e.g. '3', '3, 9', 'top-acc', 'all', 'none')")
-    sweep_parser.add_argument("--train-teacher", action="store_true", default=False, help="Train the teacher model before sweeping (for benchmark/research mode without pre-trained checkpoints)")
+    sweep_parser.add_argument("--train-teacher", dest="train_teacher", action="store_true", default=None, help="Force training the teacher model before sweeping")
+    sweep_parser.add_argument("--no-train-teacher", dest="train_teacher", action="store_false", help="Skip teacher training (assumes pre-trained)")
     sweep_parser.add_argument("--teacher-epochs", type=int, default=None, help="Number of training epochs for the teacher model (default: same as --epochs)")
     sweep_parser.set_defaults(func=handle_sweep)
 
