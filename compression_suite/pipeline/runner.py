@@ -131,14 +131,14 @@ class PipelineRunner:
         # 1. Baseline Teacher FP32
         # -------------------------------------------------------------------
         p1_path = os.path.join(self.staging_dir, "1_baseline_teacher_fp32.pt")
-        if self.train_teacher:
+        if os.path.exists(p1_path):
+            print(">>> [1/12] Loading staged Baseline Teacher FP32...")
+            t_model = torch.load(p1_path, map_location=self.device)
+        elif self.train_teacher:
             print("\n>>> [1/12] Training Baseline Teacher FP32...")
             t_model = copy.deepcopy(self.teacher).to(self.device)
             t_model = self._train_model(t_model, teacher=None, epochs=self.teacher_epochs or self.train_epochs)
             torch.save(t_model, p1_path)
-        elif os.path.exists(p1_path):
-            print(">>> [1/12] Loading staged Baseline Teacher FP32...")
-            t_model = torch.load(p1_path, map_location=self.device)
         else:
             print(">>> [1/12] Profiling Baseline Teacher FP32...")
             t_model = copy.deepcopy(self.teacher)
@@ -168,7 +168,7 @@ class PipelineRunner:
         # 3. Distilled Student (KD)
         # -------------------------------------------------------------------
         p3_path = os.path.join(self.staging_dir, "3_distilled_student.pt")
-        if not self.train_teacher and os.path.exists(p3_path):
+        if os.path.exists(p3_path):
             print("\n>>> [3/12] Loading staged Distilled Student (KD)...")
             s_kd = torch.load(p3_path, map_location=self.device)
         else:
