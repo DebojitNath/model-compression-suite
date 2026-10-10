@@ -142,6 +142,9 @@ def handle_sweep(args):
     print(f"Output Directory : {output_dir}")
     print("===============================================================\n")
 
+    train_teacher = getattr(args, "train_teacher", False) or config.get("train_teacher", False)
+    teacher_epochs = getattr(args, "teacher_epochs", None) or config.get("teacher_epochs", None)
+
     # 5. Run Pipeline
     runner = PipelineRunner(
         teacher=teacher,
@@ -159,6 +162,8 @@ def handle_sweep(args):
         ptq_dtype=ptq_dtype,
         output_dir=output_dir,
         verbose=True,
+        train_teacher=train_teacher,
+        teacher_epochs=teacher_epochs,
     )
 
     results = runner.run_all_pipelines()
@@ -417,6 +422,8 @@ def main():
     sweep_parser.add_argument("--batch-size", type=int, default=None, help="Batch size")
     sweep_parser.add_argument("--device", type=str, default=None, help="'cpu', 'cuda', or 'auto'")
     sweep_parser.add_argument("--export", type=str, default=None, help="Comma-separated model(s) to export (e.g. '3', '3, 9', 'top-acc', 'all', 'none')")
+    sweep_parser.add_argument("--train-teacher", action="store_true", default=False, help="Train the teacher model before sweeping (for benchmark/research mode without pre-trained checkpoints)")
+    sweep_parser.add_argument("--teacher-epochs", type=int, default=None, help="Number of training epochs for the teacher model (default: same as --epochs)")
     sweep_parser.set_defaults(func=handle_sweep)
 
     # Subcommand: interactive (Wizard prompt in terminal)

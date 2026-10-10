@@ -42,6 +42,8 @@ class PipelineRunner:
         ptq_dtype: str = "int8",
         output_dir: Optional[str] = None,
         verbose: bool = True,
+        train_teacher: bool = False,
+        teacher_epochs: Optional[int] = None,
     ):
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.teacher = teacher.to(self.device)
@@ -58,6 +60,8 @@ class PipelineRunner:
         self.ptq_dtype = ptq_dtype
         self.output_dir = output_dir or "./outputs"
         self.verbose = verbose
+        self.train_teacher = train_teacher
+        self.teacher_epochs = teacher_epochs
 
         self.effective_sparsity = 0.5 if str(prune_target_sparsity).lower() == "auto" else float(prune_target_sparsity)
         self.sparsity_grid_results = []
@@ -72,7 +76,7 @@ class PipelineRunner:
             dtype=ptq_dtype,
         )
 
-    def _train_model(self, model: nn.Module, teacher: Optional[nn.Module] = None) -> nn.Module:
+    def _train_model(self, model: nn.Module, teacher: Optional[nn.Module] = None, epochs: Optional[int] = None) -> nn.Module:
         """Trains or distills a model."""
         trainer = DistillationTrainer(
             student=model,
@@ -82,7 +86,7 @@ class PipelineRunner:
         trainer.fit(
             train_loader=self.dataloaders["train"],
             val_loader=self.dataloaders["val"],
-            epochs=self.train_epochs,
+            epochs=epochs or self.train_epochs,
             verbose=self.verbose,
         )
         return trainer.student
@@ -127,7 +131,12 @@ class PipelineRunner:
         # 1. Baseline Teacher FP32
         # -------------------------------------------------------------------
         p1_path = os.path.join(self.staging_dir, "1_baseline_teacher_fp32.pt")
-        if os.path.exists(p1_path):
+        if self.train_teacher:
+            print("\n>>> [1/12] Training Baseline Teacher FP32...")
+            t_model = copy.deepcopy(self.teacher).to(self.device)
+            t_model = self._train_model(t_model, teacher=None, epochs=self.teacher_epochs or self.train_epochs)
+            torch.save(t_model, p1_path)
+        elif os.path.exists(p1_path):
             print(">>> [1/12] Loading staged Baseline Teacher FP32...")
             t_model = torch.load(p1_path, map_location=self.device)
         else:
@@ -137,6 +146,7 @@ class PipelineRunner:
         res_1 = self.profiler.profile_full(t_model, self.dataloaders["test"], self.sample_input, "1_baseline_teacher_fp32")
         results.append(res_1)
         self.staged_paths["1_baseline_teacher_fp32"] = p1_path
+        self.teacher = copy.deepcopy(t_model)
 
         # -------------------------------------------------------------------
         # 2. Baseline Student FP32 (trained from scratch without KD)
@@ -158,7 +168,7 @@ class PipelineRunner:
         # 3. Distilled Student (KD)
         # -------------------------------------------------------------------
         p3_path = os.path.join(self.staging_dir, "3_distilled_student.pt")
-        if os.path.exists(p3_path):
+        if not self.train_teacher and os.path.exists(p3_path):
             print("\n>>> [3/12] Loading staged Distilled Student (KD)...")
             s_kd = torch.load(p3_path, map_location=self.device)
         else:
@@ -192,7 +202,7 @@ class PipelineRunner:
         # 4. Pruned Teacher (IMP)
         # -------------------------------------------------------------------
         p4_path = os.path.join(self.staging_dir, "4_pruned_teacher.pt")
-        if os.path.exists(p4_path):
+        if not self.train_teacher and os.path.exists(p4_path):
             print(f"\n>>> [4/12] Loading staged Pruned Teacher ({self.effective_sparsity*100:.1f}% sparsity)...")
             t_pruned = torch.load(p4_path, map_location=self.device)
         else:
@@ -225,7 +235,7 @@ class PipelineRunner:
         # 6. Distilled + Pruned Student (KD + IMP)
         # -------------------------------------------------------------------
         p6_path = os.path.join(self.staging_dir, "6_distilled_pruned_student.pt")
-        if os.path.exists(p6_path):
+        if not self.train_teacher and os.path.exists(p6_path):
             print("\n>>> [6/12] Loading staged Distilled + Pruned Student (KD + IMP)...")
             s_kd_pruned = torch.load(p6_path, map_location=self.device)
         else:
