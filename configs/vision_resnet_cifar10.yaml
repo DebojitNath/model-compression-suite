@@ -1,0 +1,125 @@
+# ==============================================================================
+# Model Compression Suite - Real Vision Benchmark (ResNet-50 -> ResNet-18)
+# ==============================================================================
+# PURPOSE:
+#   Full production-grade Computer Vision benchmark.
+#   Uses deep architectures (ResNet-50 teacher distilling into ResNet-18 student)
+#   trained on the real CIFAR-10 photographic dataset (60,000 real images).
+#   Sweeps all 12 combinatorial pipelines across Knowledge Distillation (KD),
+#   Iterative Magnitude Pruning (IMP), and Post-Training Quantization (PTQ).
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Input Specification (Choose WAY A or WAY B)
+# ------------------------------------------------------------------------------
+# WAY A: Code-Based / Registry Input (Active Default below):
+#   Loads architectures directly from Python code in vision_models.py.
+#   No external files or .pt files required.
+teacher_model: "resnet50"       # Options: 'resnet50', 'resnet34', 'resnet18', 'fast_convnet_teacher'
+student_model: "resnet18"       # Options: 'resnet18', 'fast_convnet_student'
+dataset: "cifar10"              # Options: 'cifar10', 'synthetic_vision', or path to an ImageFolder directory
+
+# WAY B: Convention-Based Input Bundle (Alternative):
+#   Uncomment the line below if you generated or placed a bundle in inputs/
+#   When input_dir is active, it automatically discovers teacher/, student/, and dataset/
+# input_dir: "./inputs/resnet_cifar10"
+
+# ------------------------------------------------------------------------------
+# 2. Training Parameters
+# ------------------------------------------------------------------------------
+# Batch Size:
+#   Number of images per optimization step.
+#   Options: 32, 64, 128 (64 is optimal for balance of gradient noise and GPU/CPU RAM)
+batch_size: 64
+
+# Training Epochs:
+#   Number of full dataset passes used to train the student:
+#     - In Pipeline 2: Trains baseline student from scratch (no teacher).
+#     - In Pipeline 3: Trains student with Knowledge Distillation from teacher.
+#   Options: 1 (fast smoke test), 5 (good convergence), 10-20 (full production training)
+train_epochs: 5
+
+# ------------------------------------------------------------------------------
+# 3. Pruning Configuration (Iterative Magnitude Pruning with LTH Rewind)
+# ------------------------------------------------------------------------------
+# Target Sparsity:
+#   Percentage of model weights to mask/zero out.
+#   Options:
+#     - 'auto' : Automatically benchmarks candidates below and selects the highest
+#                sparsity that stays within max_accuracy_drop (RECOMMENDED).
+#     - Float  : Fixed target sparsity between 0.01 and 0.99 (e.g. 0.50 = 50% weights zeroed)
+prune_target_sparsity: "auto"
+
+# Sparsity Candidates (used only when prune_target_sparsity is 'auto'):
+#   List of candidate sparsities tested during the automated sweet-spot search.
+#   Options: Any ascending list of floats between 0.01 and 0.99
+sparsity_candidates: [0.30, 0.50, 0.70, 0.85]
+
+# Max Accuracy Drop (Tolerance SLA in percentage points):
+#   Maximum allowable accuracy drop from unpruned baseline before pruning halts.
+#   Default: 2.0 (e.g., if unpruned accuracy is 85%, minimum acceptable is 83.0%)
+max_accuracy_drop: 2.0
+
+# Pruning Iterations:
+#   Number of progressive pruning cycles to reach the target sparsity.
+#   Gradual pruning (e.g. 2-3 rounds) produces substantially higher accuracy than 1-shot pruning.
+#   Options: 1 to 5 (3 rounds recommended for smooth Lottery Ticket rewinding)
+prune_iterations: 3
+
+# Healing Epochs:
+#   Fine-tuning epochs run after each pruning iteration to recover pruned weights.
+#   Options: 0 (no healing), 1 to 3 (recommended: 1 or 2)
+healing_epochs: 2
+
+# ------------------------------------------------------------------------------
+# 4. Quantization Configuration (PTQ - Post-Training Quantization)
+# ------------------------------------------------------------------------------
+# Calibration Method:
+#   How quantization scale (s) and zero-point (z) are computed over sample activations:
+#   Options:
+#     - 'percentile' : Robust 99.99th percentile clipping (protects against activation outliers
+#                      common in sparse/pruned networks, RECOMMENDED)
+#     - 'minmax'     : Strict absolute min-max range (vulnerable to extreme outliers)
+ptq_method: "percentile"
+
+# Quantization Target Precision:
+#   Options:
+#     - 'int8' : Standard 8-bit signed integer (4x model footprint reduction, RECOMMENDED)
+#     - 'fp16' : 16-bit half precision floating point (2x reduction)
+ptq_dtype: "int8"
+
+# ------------------------------------------------------------------------------
+# 5. Model Export Control (.pt Checkpoints)
+# ------------------------------------------------------------------------------
+# Export Models:
+#   Controls which compressed model checkpoint(s) (.pt) are permanently saved to disk.
+#   All models are saved to outputs/.../checkpoints/ along with a manifest.json.
+#   Options:
+#     - 'all'        : Export all 12 pipeline models.
+#     - 'top-acc'    : Automatically export the single highest-accuracy model.
+#     - 'top-speed'  : Automatically export the fastest (lowest P50 latency) model.
+#     - 'pareto'     : Export all models lying on the 2D/3D Pareto-optimal frontiers.
+#     - '3, 9'       : Export specific pipelines by index (e.g. #3 Distilled, #9 Quantized).
+#     - 'none'       : Save telemetry and plots, but export 0 model weights to save disk.
+export_models: "all"
+
+# ------------------------------------------------------------------------------
+# 6. Runtime, Output & Hardware Environment
+# ------------------------------------------------------------------------------
+# Output Directory:
+#   Where results.csv, results.json, Pareto plots (.png/.svg), and checkpoints/ are saved.
+output_dir: "./outputs/resnet_cifar10_sweep"
+
+# Overwrite Policy:
+#   What to do if output_dir already exists and contains files:
+#   Options:
+#     - false : Prompts in terminal, or auto-increments to output_dir_1 (SAFE)
+#     - true  : Force overwrites the directory without prompting
+overwrite: false
+
+# Compute Device:
+#   Options:
+#     - 'auto' : Automatically detects and uses CUDA GPU if available, else CPU (RECOMMENDED)
+#     - 'cpu'  : Force CPU execution
+#     - 'cuda' : Force NVIDIA CUDA GPU execution
+device: "auto"

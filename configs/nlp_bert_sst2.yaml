@@ -1,0 +1,109 @@
+# ==============================================================================
+# Model Compression Suite - Real NLP Benchmark (BERT Teacher -> MiniBERT Student)
+# ==============================================================================
+# PURPOSE:
+#   Production-grade Natural Language Processing (NLP) benchmark.
+#   Uses transformer sequence models:
+#     - Teacher: bert_teacher (6-layer, 512-dim, 8-head Transformer Encoder)
+#     - Student: minibert_student (2-layer, 256-dim, 4-head Transformer Encoder)
+#   Evaluated on the famous SST-2 (Stanford Sentiment Treebank) from GLUE.
+#   Sweeps all 12 combinatorial pipelines across Knowledge Distillation (KD),
+#   Iterative Magnitude Pruning (IMP), and Post-Training Quantization (PTQ).
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Input Specification (Code-Based / Registry Input)
+# ------------------------------------------------------------------------------
+# Loads NLP architectures directly from Python code in text_models.py.
+# No raw .pt files required.
+teacher_model: "bert_teacher"     # Options: 'bert_teacher'
+student_model: "minibert_student" # Options: 'minibert_student'
+dataset: "sst2"                   # Options: 'sst2' (GLUE benchmark), 'synthetic_text'
+num_classes: 2                    # 2 classes: 0 (negative) vs 1 (positive sentiment)
+
+# ------------------------------------------------------------------------------
+# 2. Training Parameters
+# ------------------------------------------------------------------------------
+# Batch Size:
+#   Number of text sequences per optimization step.
+#   Options: 32, 64, 128 (64 is standard for sequence classification)
+batch_size: 64
+
+# Training Epochs:
+#   Number of full dataset passes used to train the student:
+#     - In Pipeline 2: Trains baseline student from scratch (no teacher).
+#     - In Pipeline 3: Trains student with Knowledge Distillation from teacher.
+#   Options: 1 (fast smoke test), 2-3 (recommended for quick evaluation), 5-10 (full convergence)
+train_epochs: 2
+
+# Maximum Benchmark Samples:
+#   Caps dataset size to 1,000 sentences for rapid iteration and benchmarking on CPU/GPU.
+#   Set to null (or delete line) to train on the complete 67,349 sample GLUE SST-2 benchmark.
+max_samples: 1000
+
+# ------------------------------------------------------------------------------
+# 3. Pruning Parameters (Iterative Magnitude Pruning & Lottery Ticket Rewinding)
+# ------------------------------------------------------------------------------
+# Pruning Target Sparsity:
+#   - 'auto': Evaluates candidate grid and selects the highest compression within SLA.
+#   - float (e.g. 0.50): Locks pruning to a fixed target without searching.
+prune_sparsity: "auto"
+
+# Candidate Sparsities (Evaluated when prune_sparsity is 'auto'):
+#   Grid of target sparsities tested on the validation set.
+#   Options: list of floats between 0.05 and 0.95
+sparsity_candidates:
+  - 0.30
+  - 0.50
+  - 0.70
+  - 0.85
+
+# Max Accuracy Drop (Threshold for Auto-Sparsity):
+#   Maximum permissible degradation in Top-1 accuracy percentage points relative to baseline student.
+max_accuracy_drop: 2.0
+
+# Pruning Iterations:
+#   Number of iterative pruning rounds (IMP). Weights are rewound to initialization each round.
+#   Options: 1 to 5 (2 is standard for fast sweeps)
+prune_iterations: 2
+
+# Healing Epochs:
+#   Number of fine-tuning epochs per pruning round to recover lost capacity.
+#   Options: 1 to 3
+healing_epochs: 1
+
+# ------------------------------------------------------------------------------
+# 4. Quantization Parameters (Post-Training Quantization / PTQ)
+# ------------------------------------------------------------------------------
+# PTQ Calibration Method:
+#   Determines dynamic range for INT8 affine scaling across transformer attention & linear layers.
+#   Options:
+#     - 'percentile': (Recommended) 99.99th percentile clipping; resists outlier activations.
+#     - 'minmax': Full range [min, max]; simpler but sensitive to attention spikes.
+ptq_method: "percentile"
+
+# PTQ Data Type:
+#   Target quantization precision.
+#   Options: 'int8'
+ptq_dtype: "int8"
+
+# ------------------------------------------------------------------------------
+# 5. Execution & Output Settings
+# ------------------------------------------------------------------------------
+# Output Directory:
+#   Destination directory for CSV logs, Pareto front charts, and exported models.
+output_dir: "./outputs/nlp_bert_sst2_sweep"
+
+# Device:
+#   Hardware accelerator for training, pruning, and latency profiling.
+#   Options: 'auto' (picks cuda if available, else cpu), 'cuda', 'cpu'
+device: "auto"
+
+# Model Checkpoint Export Format:
+#   Which model artifact variants to save upon sweep completion.
+#   Options:
+#     - 'all'       : Exports both PyTorch state_dict (.pt) and TorchScript (.ts)
+#     - 'state_dict': Exports PyTorch weights only (.pt)
+#     - 'torchscript': Exports compiled TorchScript (.ts)
+#     - 'none'      : Skips model weight export; only saves CSV logs and charts
+export: "all"

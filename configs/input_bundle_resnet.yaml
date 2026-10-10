@@ -1,0 +1,42 @@
+# ==============================================================================
+# Model Compression Suite - ResNet Input Bundle Configuration
+# ==============================================================================
+# PURPOSE:
+#   Runs the 12-pipeline sweep using the pre-packaged ResNet input bundle
+#   located at inputs/resnet_cifar10/ (contains resnet50.pt, resnet18.pt, and dataset/).
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Input Bundle Path
+# ------------------------------------------------------------------------------
+# Auto-discovers teacher/resnet50.pt, student/resnet18.pt, and dataset/ subfolders:
+input_dir: "./inputs/resnet_cifar10"
+
+# ------------------------------------------------------------------------------
+# 2. Training Parameters
+# ------------------------------------------------------------------------------
+batch_size: 32
+train_epochs: 3                         # Epochs to train baseline & distilled student
+
+# ------------------------------------------------------------------------------
+# 3. Pruning Parameters (IMP with LTH Rewind)
+# ------------------------------------------------------------------------------
+prune_target_sparsity: "auto"           # "auto" for automated sweet-spot search, or a float like 0.50
+sparsity_candidates: [0.30, 0.50, 0.70, 0.85]
+max_accuracy_drop: 2.0                  # Maximum allowed accuracy drop in percentage points
+prune_iterations: 2                     # Number of progressive pruning cycles
+healing_epochs: 1                       # Healing fine-tuning epochs per cycle
+
+# ------------------------------------------------------------------------------
+# 4. Quantization Parameters (PTQ)
+# ------------------------------------------------------------------------------
+ptq_method: "percentile"                # "percentile" (99.99% outlier clipping, recommended) or "minmax"
+ptq_dtype: "int8"                       # "int8" or "fp16"
+
+# ------------------------------------------------------------------------------
+# 5. Output & Checkpoint Export
+# ------------------------------------------------------------------------------
+output_dir: "./outputs/resnet_bundle_sweep"
+export_models: "all"                    # "all", "top-acc", "top-speed", "pareto", "3, 9", or "none"
+overwrite: false                        # false = safe auto-increment (resnet_bundle_sweep_1), true = overwrite
+device: "auto"                          # "auto", "cpu", or "cuda"

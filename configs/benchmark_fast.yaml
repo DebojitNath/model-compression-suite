@@ -1,0 +1,107 @@
+# ==============================================================================
+# Model Compression Suite - Fast Benchmark Configuration
+# ==============================================================================
+# PURPOSE:
+#   An ultra-fast sanity check and verification sweep (<60s on CPU).
+#   Uses lightweight 6-layer Teacher (~1.2M params) and 3-layer Student (~160K params)
+#   on deterministic synthetic vision tensors to test all 12 pipelines, pruning masks,
+#   PTQ calibration, and Pareto plotting routines without heavy compute.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Input Specification (Choose WAY A or WAY B)
+# ------------------------------------------------------------------------------
+# WAY A: Code-Based / Registry Input (Active Default below):
+#   Loads architectures directly from Python registry. No external files needed.
+teacher_model: "fast_convnet_teacher"   # Options: 'fast_convnet_teacher', 'resnet50', 'resnet18'
+student_model: "fast_convnet_student"   # Options: 'fast_convnet_student', 'resnet18'
+dataset: "synthetic_vision"             # Options: 'synthetic_vision', 'cifar10', or path to ImageFolder directory
+
+# WAY B: Convention-Based Input Bundle (Alternative):
+#   Uncomment if pointing to an existing inputs/<bundle> folder:
+# input_dir: "./inputs/my_experiment"
+
+# ------------------------------------------------------------------------------
+# 2. Training Parameters
+# ------------------------------------------------------------------------------
+# Batch Size:
+#   Options: 32, 64, 128 (64 is recommended for CPU & mid-tier GPUs)
+batch_size: 64
+
+# Training Epochs:
+#   Number of epochs to train baseline student & distillation student:
+#   (1 epoch is sufficient for ultra-fast verification runs)
+train_epochs: 1
+
+# ------------------------------------------------------------------------------
+# 3. Pruning Configuration (Iterative Magnitude Pruning with LTH Rewind)
+# ------------------------------------------------------------------------------
+# Target Sparsity:
+#   Options:
+#     - 'auto' : Automatically benchmarks candidates below and selects the highest
+#                viable sparsity within max_accuracy_drop.
+#     - Float  : Fixed target sparsity between 0.01 and 0.99 (e.g. 0.30 = 30% weights zeroed)
+prune_target_sparsity: "auto"
+
+# Sparsity Candidates (used when prune_target_sparsity is 'auto'):
+#   Candidate sparsities evaluated during the automated sweet-spot search.
+sparsity_candidates: [0.30, 0.50, 0.70, 0.85]
+
+# Max Accuracy Drop (Tolerance SLA in percentage points):
+#   Maximum allowable accuracy drop from unpruned baseline before pruning halts.
+#   Default: 2.0 (e.g. if unpruned is 85%, minimum acceptable is 83.0%)
+max_accuracy_drop: 2.0
+
+# Pruning Iterations:
+#   Number of progressive pruning rounds (2 rounds recommended for fast test)
+prune_iterations: 2
+
+# Healing Epochs:
+#   Fine-tuning recovery epochs run after each pruning iteration.
+healing_epochs: 1
+
+# ------------------------------------------------------------------------------
+# 4. Quantization Configuration (PTQ - Post-Training Quantization)
+# ------------------------------------------------------------------------------
+# Calibration Method:
+#   Options:
+#     - 'percentile' : Robust 99.99th percentile clipping (protects against outliers, recommended)
+#     - 'minmax'     : Strict absolute min-max range
+ptq_method: "percentile"
+
+# Quantization Target Precision:
+#   Options:
+#     - 'int8' : 8-bit integer precision (4x footprint compression, recommended)
+#     - 'fp16' : 16-bit floating point precision (2x compression)
+ptq_dtype: "int8"
+
+# ------------------------------------------------------------------------------
+# 5. Model Export Control (.pt Checkpoints)
+# ------------------------------------------------------------------------------
+# Export Models:
+#   Controls which compressed model checkpoint(s) (.pt) are saved to disk.
+#   Options:
+#     - 'none'       : Default for fast benchmark (saves plots & report, skips .pt export)
+#     - 'all'        : Export all 12 pipeline models.
+#     - 'top-acc'    : Automatically export the single highest-accuracy model.
+#     - 'top-speed'  : Automatically export the fastest (lowest P50 latency) model.
+#     - 'pareto'     : Export all models lying on the 2D/3D Pareto frontier.
+#     - '3, 9'       : Export specific pipelines by index (e.g. #3 Distilled, #9 Quantized).
+export_models: "none"
+
+# ------------------------------------------------------------------------------
+# 6. Runtime, Output & Hardware Environment
+# ------------------------------------------------------------------------------
+# Output Directory:
+#   Where results.csv, plots (.png/.svg), manifest.json, and checkpoints/ are saved.
+output_dir: "./outputs/benchmark_fast"
+
+# Overwrite Policy:
+#   Options:
+#     - false : Prompts or auto-increments to benchmark_fast_1 if directory exists (SAFE)
+#     - true  : Force overwrites existing directory
+overwrite: false
+
+# Compute Device:
+#   Options: 'auto' (detects CUDA GPU if available, else CPU), 'cpu', 'cuda'
+device: "auto"
