@@ -35,15 +35,15 @@ The suite profiles real-world hardware trade-offs across task accuracy, paramete
 
 | # | Pipeline Name | Top-1 Acc | P50 Latency (ms) | Speedup | Disk Size | Sparsity | Pareto? |
 | :---: | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| `1` | `1_baseline_teacher_fp32` | 10.0% | 7.51 ms | 1.0x | 90.02 MB | 0.1% | - |
-| `2` | `2_baseline_student_fp32` | 88.8% | 2.75 ms | 2.7x | 42.70 MB | 0.0% | **YES** |
-| `3` | `3_distilled_student` | 89.4% | 4.29 ms | 1.8x | 42.70 MB | 0.0% | **YES** |
-| `5` | `5_pruned_student` | 88.7% | 2.56 ms | 2.9x | 42.70 MB | 84.9% | **YES** |
-| `6` | `6_distilled_pruned_student` | 89.4% | 3.33 ms | 2.3x | 42.70 MB | 84.9% | **YES** |
-| `9` | `9_distilled_quantized_student` | 89.3% | 2.47 ms | 3.0x | 42.70 MB | 2.0% | **YES** |
-| `11` | **`11_trifecta_student_int8`** | **89.4%** | **2.52 ms** | **3.0x** | **42.70 MB** | **84.9%** | **YES** |
+| `1` | `1_baseline_teacher_fp32` | 86.0% | 5.47 ms | 1.0x | 90.02 MB | 0.0% | - |
+| `2` | `2_baseline_student_fp32` | 88.2% | 2.25 ms | 2.4x | 42.70 MB | 0.0% | **YES** |
+| `3` | `3_distilled_student` | 87.8% | 2.26 ms | 2.4x | 42.70 MB | 0.0% | - |
+| `5` | `5_pruned_student` | 88.4% | 2.88 ms | 1.9x | 42.70 MB | 84.9% | **YES** |
+| `6` | `6_distilled_pruned_student` | 88.2% | 4.35 ms | 1.3x | 42.70 MB | 84.9% | - |
+| `10` | `10_pruned_quantized_student` | 88.4% | 2.50 ms | 2.2x | 42.70 MB | 84.9% | **YES** |
+| `11` | **`11_trifecta_student_int8`** | **88.2%** | **3.07 ms** | **1.8x** | **42.70 MB** | **84.9%** | - |
 
-> **Key Finding:** The **Trifecta Student (`[11]`)** achieves a **3.0x latency speedup ($2.52\text{ ms}$)**, a **$53\%$ memory shrink**, and **$84.9\%$ convolutional parameter sparsity** while retaining **full $89.4\%$ Top-1 accuracy** (higher than the standalone student baseline).
+> **Key Finding:** The **Trifecta Student (`[11]`)** and **Pruned-Quantized Student (`[10]`)** achieve **1.8x–2.2x latency speedups**, a **$53\%$ memory shrink ($90.0\text{ MB} \to 42.7\text{ MB}$)**, and **$84.9\%$ parameter sparsity** while exceeding the teacher's Top-1 accuracy (**$88.2\%\text{–}88.4\%$ vs $86.0\%$**).
 
 ---
 

@@ -365,7 +365,7 @@ class PipelineRunner:
                         selected_names.add(r["pipeline"])
             elif tok == "pareto":
                 for r in annotated_results:
-                    if r.get("pareto_2d_latency_acc") or r.get("pareto_2d_size_acc") or r.get("is_pareto_3d"):
+                    if r.get("is_pareto_latency") or r.get("is_pareto_size") or r.get("is_pareto_3d"):
                         selected_names.add(r["pipeline"])
             elif tok.isdigit():
                 idx = int(tok) - 1

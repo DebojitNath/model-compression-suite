@@ -217,7 +217,7 @@ def handle_sweep(args):
         lat = f"{r['latency_p50_ms']:.2f} ms"
         sz = f"{r['disk_size_mb']:.2f} MB"
         sp = f"{r['sparsity_pct']:.1f}%"
-        is_p = "YES" if (r.get("pareto_2d_latency_acc") or r.get("pareto_2d_size_acc")) else "-"
+        is_p = "YES" if (r.get("is_pareto_latency") or r.get("is_pareto_size") or r.get("is_pareto_3d")) else "-"
         print(f"[{idx:<2}] {p_name:<32} {acc:<11} {lat:<12} {sz:<10} {sp:<10} {is_p}")
     print("=" * 85)
 
