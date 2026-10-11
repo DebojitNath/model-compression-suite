@@ -322,21 +322,40 @@ def handle_interactive(args):
 
     # 1. Domain Selection
     domain_options = [
-        ("vision", "Computer Vision: CIFAR-10 / Image Classification"),
-        ("text", "Natural Language Processing: SST-2 / Sentiment Classification"),
+        ("vision", "Computer Vision (Standard models: ResNet, FastConvNet on CIFAR-10)"),
+        ("text", "Natural Language Processing (Standard models: BERT, MiniBERT on SST-2)"),
+        ("custom_bundle", "Custom Input Bundle (Your own folder with teacher/, student/, dataset/)"),
     ]
-    domain = select_from_menu("Step 1: Select Domain / Modality", domain_options, default_idx=1)
+    domain = select_from_menu("Step 1: Select Domain / Input Type", domain_options, default_idx=1)
 
-    # 2. Architecture Selection by Role (Teacher vs Student)
-    if domain == "vision":
+    input_dir = None
+    teacher_name = None
+    student_name = None
+    dataset_name = None
+
+    if domain == "custom_bundle":
+        input_dir = prompt_user("Enter path to your custom bundle directory", "./inputs/resnet_cifar10")
+        print(f"\nConfiguration Summary:")
+        print(f"  - Input Bundle  : {input_dir}")
+    elif domain == "vision":
         teacher_name = select_from_menu("Step 2: Select Teacher Architecture", TEACHER_MODELS_VISION, default_idx=1)
         student_name = select_from_menu("Step 3: Select Student Architecture", STUDENT_MODELS_VISION, default_idx=1)
 
         dataset_options = [
             ("cifar10", "CIFAR-10 (Standard 10-class vision benchmark)"),
             ("synthetic", "Synthetic Images (Fast test, 100 samples)"),
+            ("custom_dir", "Custom Image Folder (Specify your own directory path)"),
         ]
-        dataset_name = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
+        chosen_ds = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
+        if chosen_ds == "custom_dir":
+            dataset_name = prompt_user("Enter path to your image dataset folder", "./data/my_images")
+        else:
+            dataset_name = chosen_ds
+
+        print(f"\nConfiguration Summary:")
+        print(f"  - Teacher Model : {teacher_name}")
+        print(f"  - Student Model : {student_name}")
+        print(f"  - Dataset       : {dataset_name}")
     else:
         teacher_name = select_from_menu("Step 2: Select Teacher Architecture", TEACHER_MODELS_TEXT, default_idx=1)
         student_name = select_from_menu("Step 3: Select Student Architecture", STUDENT_MODELS_TEXT, default_idx=1)
@@ -344,13 +363,18 @@ def handle_interactive(args):
         dataset_options = [
             ("sst2", "SST-2 (GLUE benchmark for binary sentiment)"),
             ("synthetic_text", "Synthetic Sentences (Fast test, 100 samples)"),
+            ("custom_dir", "Custom Text Folder (Specify your own directory path)"),
         ]
-        dataset_name = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
+        chosen_ds = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
+        if chosen_ds == "custom_dir":
+            dataset_name = prompt_user("Enter path to your text dataset folder", "./data/my_texts")
+        else:
+            dataset_name = chosen_ds
 
-    print(f"\nConfiguration Summary:")
-    print(f"  - Teacher Model : {teacher_name}")
-    print(f"  - Student Model : {student_name}")
-    print(f"  - Dataset       : {dataset_name}")
+        print(f"\nConfiguration Summary:")
+        print(f"  - Teacher Model : {teacher_name}")
+        print(f"  - Student Model : {student_name}")
+        print(f"  - Dataset       : {dataset_name}")
 
     # 3. Sparsity Setting
     sparsity_menu = [
@@ -380,6 +404,7 @@ def handle_interactive(args):
     # Construct dummy args and run
     sweep_args = argparse.Namespace(
         config=None,
+        input_dir=input_dir,
         teacher=teacher_name,
         student=student_name,
         dataset=dataset_name,
