@@ -65,8 +65,10 @@ Thumbs.db
 *.tflite
 *.safetensors
 
-# Data directories (datasets are downloaded on demand)
-data/
+# Data directories (datasets are downloaded on demand to root data/)
+/data/
+!compression_suite/data/
+!compression_suite/data/**
 outputs/**/.staging/
 outputs/**/checkpoints/
 inputs/**/*.pt
