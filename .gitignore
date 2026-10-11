@@ -67,8 +67,6 @@ Thumbs.db
 
 # Data directories (datasets are downloaded on demand to root data/)
 /data/
-!compression_suite/data/
-!compression_suite/data/**
 outputs/**/.staging/
 outputs/**/checkpoints/
 inputs/**/*.pt
