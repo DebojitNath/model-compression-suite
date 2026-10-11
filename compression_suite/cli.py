@@ -17,6 +17,9 @@ from compression_suite.pipeline.experiment import save_experiment_results
 from compression_suite.visualization.plots import generate_all_plots
 from compression_suite.utils.workspace import resolve_input_bundle, resolve_output_dir
 
+VISION_MODELS = {"fast_convnet_teacher", "fast_convnet_student", "resnet18", "resnet34", "resnet50"}
+TEXT_MODELS = {"bert_teacher", "minibert_student"}
+
 
 def load_config(config_path: str) -> dict:
     if not os.path.exists(config_path):
@@ -268,8 +271,24 @@ def handle_list_models(args):
         print(f"  - {name}")
 
 
-VISION_MODELS = {"fast_convnet_teacher", "fast_convnet_student", "resnet18", "resnet34", "resnet50"}
-TEXT_MODELS = {"bert_teacher", "minibert_student"}
+TEACHER_MODELS_VISION = [
+    ("resnet50", "ResNet-50 (23.5M params - Deep ResNet)"),
+    ("resnet34", "ResNet-34 (21.3M params - Medium ResNet)"),
+    ("fast_convnet_teacher", "FastConvNet Teacher (2.8M params - Lightweight CNN)"),
+]
+
+STUDENT_MODELS_VISION = [
+    ("resnet18", "ResNet-18 (11.2M params - Compact ResNet)"),
+    ("fast_convnet_student", "FastConvNet Student (0.7M params - Tiny CNN)"),
+]
+
+TEACHER_MODELS_TEXT = [
+    ("bert_teacher", "BERT-base (109.5M params - Transformer)"),
+]
+
+STUDENT_MODELS_TEXT = [
+    ("minibert_student", "MiniBERT (14.4M params - 4-layer Transformer)"),
+]
 
 
 def prompt_user(prompt_text: str, default: str) -> str:
@@ -277,112 +296,84 @@ def prompt_user(prompt_text: str, default: str) -> str:
     return val if val else default
 
 
-def resolve_model_selection(choice: str, model_list: List[str], default_name: str) -> str:
-    choice_str = choice.strip()
-    if not choice_str:
-        return default_name
-    if choice_str.isdigit():
-        idx = int(choice_str) - 1
-        if 0 <= idx < len(model_list):
-            return model_list[idx]
-        print(f"  [!] Invalid number index {choice_str}. Reverting to default: {default_name}")
-        return default_name
-    for m in model_list:
-        if m.lower() == choice_str.lower():
-            return m
-    print(f"  [!] Unknown model '{choice_str}'. Reverting to default: {default_name}")
-    return default_name
+def select_from_menu(title: str, options: List[tuple[str, str]], default_idx: int = 1) -> str:
+    print(f"\n{title}:")
+    for idx, (name, desc) in enumerate(options, 1):
+        print(f"  [{idx}] {name} ({desc})")
+    raw = input(f"Select option [default: {default_idx}]: ").strip()
+    if not raw:
+        return options[default_idx - 1][0]
+    if raw.isdigit():
+        idx = int(raw) - 1
+        if 0 <= idx < len(options):
+            return options[idx][0]
+    for name, _ in options:
+        if raw.lower() == name.lower():
+            return name
+    print(f"  [!] Invalid choice '{raw}'. Using default: {options[default_idx - 1][0]}")
+    return options[default_idx - 1][0]
 
 
 def handle_interactive(args):
     print("\n" + "=" * 65)
-    print("   MODEL COMPRESSION SUITE - Interactive Configuration Wizard   ")
+    print("      MODEL COMPRESSION SUITE - Interactive Setup")
     print("=" * 65)
-    print("Tip: You can enter either the number [1-7] or the model name.")
-    print("Press [Enter] at any prompt to accept the recommended default.\n")
+    print("Press [Enter] at any prompt to accept the default option.\n")
 
-    models = list_available_models()
-    print("Registered Architectures:")
-    print("  --- Vision Models (Image Classification) ---")
-    for idx, m in enumerate(models, 1):
-        if m in VISION_MODELS:
-            print(f"    [{idx}] {m}")
-    print("  --- Text / NLP Models (Sequence Classification) ---")
-    for idx, m in enumerate(models, 1):
-        if m in TEXT_MODELS:
-            print(f"    [{idx}] {m}")
-    print()
+    # 1. Domain Selection
+    domain_options = [
+        ("vision", "Computer Vision: CIFAR-10 / Image Classification"),
+        ("text", "Natural Language Processing: SST-2 / Sentiment Classification"),
+    ]
+    domain = select_from_menu("Step 1: Select Domain / Modality", domain_options, default_idx=1)
 
-    # 1. Models Selection with Loop Validation
-    while True:
-        raw_teacher = prompt_user("Select Teacher Architecture (number or name)", "1")
-        teacher_name = resolve_model_selection(raw_teacher, models, "fast_convnet_teacher")
-        print(f"  -> Selected Teacher: {teacher_name}")
+    # 2. Architecture Selection by Role (Teacher vs Student)
+    if domain == "vision":
+        teacher_name = select_from_menu("Step 2: Select Teacher Architecture", TEACHER_MODELS_VISION, default_idx=1)
+        student_name = select_from_menu("Step 3: Select Student Architecture", STUDENT_MODELS_VISION, default_idx=1)
 
-        default_student = "2" if teacher_name in VISION_MODELS else "7"
-        raw_student = prompt_user("Select Student Architecture (number or name)", default_student)
-        student_name = resolve_model_selection(raw_student, models, "fast_convnet_student")
-        print(f"  -> Selected Student: {student_name}")
-
-        # Modality Check (Vision vs Text)
-        t_modality = "vision" if teacher_name in VISION_MODELS else "text"
-        s_modality = "vision" if student_name in VISION_MODELS else "text"
-
-        if t_modality != s_modality:
-            print(f"\n[ERROR] Incompatible Modalities!")
-            print(f"  Teacher '{teacher_name}' is a {t_modality.upper()} model.")
-            print(f"  Student '{student_name}' is a {s_modality.upper()} model.")
-            print("  Knowledge Distillation requires both models to share the same input modality!")
-            print("  Please re-select compatible teacher/student architectures.\n")
-            continue
-
-        # Parameter Count & Capacity Sanity Check
-        t_temp = build_model(teacher_name, num_classes=10)
-        s_temp = build_model(student_name, num_classes=10)
-        t_params = sum(p.numel() for p in t_temp.parameters())
-        s_params = sum(p.numel() for p in s_temp.parameters())
-
-        if s_params > t_params:
-            print(f"\n[WARNING] Capacity Inversion Detected!")
-            print(f"  Student '{student_name}' ({s_params/1e6:.2f}M params) has MORE parameters than")
-            print(f"  Teacher '{teacher_name}' ({t_params/1e6:.2f}M params)!")
-            print("  Distillation compresses knowledge from a larger Teacher to a smaller Student.")
-            override = prompt_user("  Do you really want to proceed with a student larger than teacher? (y/n)", "n")
-            if override.lower() != "y":
-                print("  Restarting architecture selection...\n")
-                continue
-
-        break
-
-    # 2. Dataset Selection based on Modality
-    print()
-    if t_modality == "vision":
-        dataset_name = prompt_user("Select Vision Dataset (synthetic / cifar10)", "synthetic")
+        dataset_options = [
+            ("cifar10", "CIFAR-10 (Standard 10-class vision benchmark)"),
+            ("synthetic", "Synthetic Images (Fast test, 100 samples)"),
+        ]
+        dataset_name = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
     else:
-        dataset_name = prompt_user("Select Text Dataset (sst2 / synthetic_text)", "sst2")
+        teacher_name = select_from_menu("Step 2: Select Teacher Architecture", TEACHER_MODELS_TEXT, default_idx=1)
+        student_name = select_from_menu("Step 3: Select Student Architecture", STUDENT_MODELS_TEXT, default_idx=1)
+
+        dataset_options = [
+            ("sst2", "SST-2 (GLUE benchmark for binary sentiment)"),
+            ("synthetic_text", "Synthetic Sentences (Fast test, 100 samples)"),
+        ]
+        dataset_name = select_from_menu("Step 4: Select Dataset", dataset_options, default_idx=1)
+
+    print(f"\nConfiguration Summary:")
+    print(f"  - Teacher Model : {teacher_name}")
+    print(f"  - Student Model : {student_name}")
+    print(f"  - Dataset       : {dataset_name}")
 
     # 3. Sparsity Setting
-    print("\n--- Sparsity Tuning Mode ---")
-    print("  'auto' -> Evaluates candidate grid & selects best sweet spot within SLA")
-    print("  '0.5'  -> Locks pruning to exactly 50% without search overhead")
-    raw_sparsity = prompt_user("Target Sparsity ('auto' or float like 0.5)", "auto")
+    sparsity_menu = [
+        ("auto", "Auto-tune (Search 30%, 50%, 70%, 85% for best accuracy)"),
+        ("0.50", "Fixed 50% pruning (Fast, intermediate compression)"),
+        ("0.85", "Fixed 85% pruning (Maximum parameter compression)"),
+    ]
+    raw_sparsity = select_from_menu("Step 5: Select Pruning Sparsity Mode", sparsity_menu, default_idx=1)
 
-    if raw_sparsity.lower() == "auto":
+    if raw_sparsity == "auto":
         prune_sparsity = "auto"
-        c_str = prompt_user("Candidate Sparsities (space-separated)", "0.30 0.50 0.70 0.85")
-        sparsity_candidates = [float(x) for x in c_str.split()]
-        max_drop = float(prompt_user("Max Allowed Top-1 Accuracy Drop (%)", "2.0"))
+        sparsity_candidates = [0.30, 0.50, 0.70, 0.85]
+        max_drop = float(prompt_user("Max Allowed Accuracy Drop in %", "2.0"))
     else:
         prune_sparsity = float(raw_sparsity)
         sparsity_candidates = None
         max_drop = 2.0
 
-    # 4. Training & Pruning Iterations
-    epochs = int(prompt_user("Distillation / Training Epochs", "1"))
+    # 4. Training Epochs & Iterations
+    print("\nStep 6: Training & Quantization Parameters:")
+    epochs = int(prompt_user("Training / Distillation Epochs", "2"))
     prune_iters = int(prompt_user("Prune Iterations (IMP Rounds)", "2"))
     healing_ep = int(prompt_user("Healing Fine-tuning Epochs per round", "1"))
-
-    # 5. PTQ
     ptq_method = prompt_user("Quantization Calibration (percentile / minmax)", "percentile")
     output_dir = prompt_user("Output Directory", "./outputs/interactive_sweep")
 
@@ -440,8 +431,8 @@ def main():
     sweep_parser.add_argument("--teacher-epochs", type=int, default=None, help="Number of training epochs for the teacher model (default: same as --epochs)")
     sweep_parser.set_defaults(func=handle_sweep)
 
-    # Subcommand: interactive (Wizard prompt in terminal)
-    interactive_parser = subparsers.add_parser("interactive", help="Guided interactive terminal wizard")
+    # Subcommand: interactive (Interactive terminal setup)
+    interactive_parser = subparsers.add_parser("interactive", help="Guided interactive terminal setup")
     interactive_parser.set_defaults(func=handle_interactive)
 
     # Subcommand: list-models
@@ -450,7 +441,7 @@ def main():
 
     args = parser.parse_args()
     if args.command is None:
-        # If user runs without subcommands, launch interactive wizard by default
+        # If user runs without subcommands, launch interactive setup by default
         handle_interactive(args)
     else:
         args.func(args)

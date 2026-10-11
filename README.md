@@ -160,7 +160,7 @@ python -m compression_suite.cli sweep `
   --output ./outputs/bert_sst2_gpu_sweep
 ```
 
-### 4. Run Interactive Terminal Wizard
+### 4. Run Interactive Terminal Setup
 ```bash
 python -m compression_suite.cli interactive
 ```
@@ -184,7 +184,7 @@ model-compression-suite/
 ├── .github/workflows/
 │   └── ci.yml                     # Automated GitHub Actions CI workflow
 ├── compression_suite/
-│   ├── cli.py                     # CLI entrypoint & interactive wizard
+│   ├── cli.py                     # CLI entrypoint & interactive setup
 │   ├── data/                      # Dataset loaders (CIFAR-10, SST-2, Synthetic)
 │   ├── distillation/              # KD loss and training loop
 │   ├── models/                    # Model registry (ResNet, BERT, FastConvNet)

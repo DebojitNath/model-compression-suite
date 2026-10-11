@@ -329,8 +329,8 @@ python -m compression_suite.cli sweep `
   --export pareto
 ```
 
-### Mode 3: Interactive Terminal Wizard
-Launches a guided, validation-backed wizard with modality matching and capacity sanity checks:
+### Mode 3: Interactive Terminal Setup
+Launches an interactive prompt in the terminal to configure and start a compression sweep:
 ```powershell
 python -m compression_suite.cli interactive
 ```
